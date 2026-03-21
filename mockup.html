@@ -533,13 +533,33 @@
     overflow-y: auto;
     z-index: 99;
   }
+  .queue-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 12px;
+  }
   .queue-title {
     font-size: 13px;
     font-weight: 600;
-    margin-bottom: 12px;
     color: var(--ds-gray-900);
     text-transform: uppercase;
     letter-spacing: 0.05em;
+  }
+  .queue-minimize {
+    background: none;
+    border: none;
+    color: var(--ds-gray-900);
+    cursor: pointer;
+    padding: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 4px;
+    transition: color var(--transition-duration) ease;
+  }
+  .queue-minimize:hover {
+    color: var(--geist-foreground);
   }
   .queue-item {
     display: flex;
@@ -730,7 +750,14 @@
 
 <!-- Queue Panel -->
 <div class="queue-panel">
-  <div class="queue-title">Up Next</div>
+  <div class="queue-header">
+    <div class="queue-title">Up Next</div>
+    <button class="queue-minimize" title="Minimize">
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+        <path d="M4 6L8 10L12 6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+    </button>
+  </div>
   <div class="queue-item active">
     <div class="queue-item-info">
       <div class="queue-item-name">Midnight City</div>

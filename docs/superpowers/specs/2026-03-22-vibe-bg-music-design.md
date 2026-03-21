@@ -173,7 +173,7 @@ CORS enabled for all origins (LAN use).
 
 **PlayerBar** — fixed bottom bar (80px). Left: artwork placeholder + track name + artist. Center: prev/play-pause/next buttons + clickable progress bar (seek on click) with monospace timestamps. Right: volume slider + "Queue" button.
 
-**QueuePanel** — floating panel above player bar (right side). Shows "Up Next" list. Current track highlighted. Each queued track has remove button.
+**QueuePanel** — floating panel above player bar (right side). Header row: "Up Next" title + a minimize button (chevron-down SVG icon, 16px, monochromatic `var(--ds-gray-900)` → `var(--geist-foreground)` on hover, no background, matching nextjs.org icon style: 1.5px stroke, rounded linecap/linejoin). Click minimizes the panel; the PlayerBar "Queue" button toggles it back. Current track highlighted. Each queued track has remove button.
 
 ### Data Fetching
 
