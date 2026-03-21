@@ -82,7 +82,7 @@ If Apple Music is not running, all functions raise an `AppleMusicNotRunningError
 
 Uses OpenAI SDK with custom `base_url` and `api_key` from env vars.
 
-Sends batch of track info (name + artist + album) to GPT via `client.responses.create()`. Prompt instructs GPT to decide appropriate genre granularity and return structured JSON:
+Sends batch of track info (name + artist + album) to GPT via `client.responses.create()`. Prompt instructs GPT to decide appropriate genre granularity and output all category names in the language specified by `GPT_LANGUAGE` env var. Returns structured JSON:
 
 ```json
 {
@@ -184,7 +184,10 @@ Uses `swr` with `refreshInterval: 1000` for `/api/player/status` polling. Other 
 ```env
 OPENAI_API_KEY=sk-xxx
 OPENAI_BASE_URL=https://api.openai.com/v1
+GPT_LANGUAGE=zh-CN
 ```
+
+`GPT_LANGUAGE` controls the language GPT uses for category names and any text output (e.g., `zh-CN` → "独立摇滚", `en` → "Indie Rock", `ja` → "インディーロック"). Defaults to `en` if not set.
 
 Supports any OpenAI-compatible API service.
 
