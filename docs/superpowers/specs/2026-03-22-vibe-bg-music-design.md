@@ -169,7 +169,7 @@ CORS enabled for all origins (LAN use).
 
 **ClassifyingState** — while classification is in progress (polling `/api/classify/status`), show a loading indicator with batch progress (e.g., "Classifying... 2/4 batches"). Disable "Classify" button during this time.
 
-**CategoryGrid** — 3-column grid of category cards after classification. Shows category name + track count. Hover reveals "Click to play →". Click starts random playback of that category. The first card in the grid is a special **CustomPickCard**: an input field with placeholder "Describe what you want to hear..." and a submit button. User types a description, submits, backend calls GPT to pick matching tracks from the full playlist and starts playback. While GPT is selecting, show a loading spinner on the card.
+**CategoryGrid** — 3-column grid of category cards after classification. Shows category name + track count. Hover reveals "Click to play →". Click starts random playback of that category. The first card in the grid is a special **CustomPickCard**: an input field with placeholder "Describe what you want to hear..." and a submit button. User types a description, submits, backend calls GPT to pick matching tracks from the full playlist and starts playback. While GPT is selecting, show a loading spinner on the card. If the total card count (CustomPickCard + category cards) is not a multiple of 3, append empty placeholder cards (same background, no content, no hover effect) to fill the last row.
 
 **PlayerBar** — fixed bottom bar (80px). Left: artwork placeholder + track name + artist. Center: prev/play-pause/next buttons + clickable progress bar (seek on click) with monospace timestamps. Right: volume slider + "Queue" button.
 
