@@ -17,7 +17,7 @@ RUN bun run build
 # Production
 FROM base AS runner
 ENV NODE_ENV=production
-RUN adduser --system --uid 1001 nextjs
+RUN useradd --system --uid 1001 nextjs
 COPY --from=builder /app/public ./public
 COPY --from=builder --chown=1001:1001 /app/.next/standalone ./
 COPY --from=builder --chown=1001:1001 /app/.next/static ./.next/static
