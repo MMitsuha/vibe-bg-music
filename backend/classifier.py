@@ -10,6 +10,8 @@ _client = OpenAI(
     base_url=os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1"),
 )
 _language = os.getenv("GPT_LANGUAGE", "en")
+_category_count = os.getenv("GPT_CATEGORY_COUNT", "")
+_category_direction = os.getenv("GPT_CATEGORY_DIRECTION", "")
 
 BATCH_SIZE = 50
 
@@ -30,9 +32,12 @@ def _classify_batch(
             "You may add new categories if needed."
         )
 
+    count_hint = f"\nAim for approximately {_category_count} categories." if _category_count else ""
+    direction_hint = f"\nClassification direction: {_category_direction}" if _category_direction else ""
+
     prompt = f"""Classify the following music tracks into genre categories.
 Decide the appropriate granularity yourself (e.g., "Indie Rock", "Synthwave", "Lo-fi Hip Hop").
-Output all category names in {_language}.{category_hint}
+Output all category names in {_language}.{category_hint}{count_hint}{direction_hint}
 
 Tracks:
 {track_info}
@@ -44,8 +49,9 @@ Return ONLY valid JSON in this format:
     for attempt in range(3):
         try:
             response = _client.responses.create(
-                model="gpt-4.1-mini",
+                model="gpt-5.4",
                 input=prompt,
+                service_tier="priority",
             )
             text = response.output_text.strip()
             if text.startswith("```"):
@@ -67,7 +73,7 @@ def classify_tracks(
             progress_callback("1/1 batches")
         return _classify_batch(tracks)
 
-    batches = [tracks[i:i + BATCH_SIZE] for i in range(0, len(tracks), BATCH_SIZE)]
+    batches = [tracks[i : i + BATCH_SIZE] for i in range(0, len(tracks), BATCH_SIZE)]
     total = len(batches)
     all_categories: dict[str, list[dict]] = {}
     existing_names: list[str] = []
@@ -113,8 +119,9 @@ If no tracks match, return {{"track_ids": []}}
 """
     try:
         response = _client.responses.create(
-            model="gpt-4.1-mini",
+            model="gpt-5.4",
             input=prompt,
+            service_tier="priority",
         )
         text = response.output_text.strip()
         if text.startswith("```"):

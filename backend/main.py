@@ -3,7 +3,7 @@ import os
 from contextlib import asynccontextmanager
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
@@ -74,6 +74,20 @@ def health():
     return {"connected": apple_music.is_running()}
 
 
+@app.get("/api/player/artwork")
+def player_artwork():
+    try:
+        data = apple_music.get_artwork()
+    except AppleMusicNotRunningError:
+        raise HTTPException(503, "Apple Music is not running")
+    if not data:
+        raise HTTPException(404, "No artwork available")
+    content_type = "image/jpeg"
+    if data[:4] == b'\x89PNG':
+        content_type = "image/png"
+    return Response(content=data, media_type=content_type)
+
+
 @app.get("/api/playlists")
 def list_playlists():
     try:
@@ -126,8 +140,8 @@ def get_categories():
     }
 
 
-@app.post("/api/play/category/{name}")
-def play_category(name: str):
+@app.post("/api/play/category/{name:path}")
+async def play_category(name: str):
     track = state.start_category(name)
     if not track:
         raise HTTPException(400, f"Category '{name}' is empty or not found")
@@ -223,6 +237,22 @@ def player_seek(req: SeekRequest):
     except AppleMusicNotRunningError:
         raise HTTPException(503, "Apple Music is not running")
     return {"position": req.position}
+
+
+@app.post("/api/player/jump/{index}")
+async def player_jump(index: int):
+    if index < 0 or index >= len(state.queue):
+        raise HTTPException(400, "Invalid queue index")
+    state.current_index = index
+    track = state.queue[index]
+    try:
+        apple_music.play_track(state.playlist_name, track.database_id)
+    except AppleMusicNotRunningError:
+        raise HTTPException(503, "Apple Music is not running")
+    if not state.is_monitoring:
+        state.is_monitoring = True
+        asyncio.create_task(monitor_playback())
+    return {"playing": track.name, "artist": track.artist}
 
 
 @app.get("/api/player/queue")

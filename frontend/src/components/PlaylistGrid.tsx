@@ -14,6 +14,7 @@ export default function PlaylistGrid({
   const [progress, setProgress] = useState("");
 
   const playlists = data?.playlists ?? [];
+  const fillerCount = (3 - (playlists.length % 3)) % 3;
 
   async function handleClassify() {
     if (!selected || classifyStatus === "classifying") return;
@@ -58,6 +59,9 @@ export default function PlaylistGrid({
             <div className="text-sm font-semibold text-[var(--geist-foreground)]">{p.name}</div>
             <div className="text-[13px] text-[var(--ds-gray-700)]">{p.track_count} tracks</div>
           </button>
+        ))}
+        {Array.from({ length: fillerCount }).map((_, i) => (
+          <div key={`filler-${i}`} className="bg-[var(--ds-background-100)]" />
         ))}
       </div>
 

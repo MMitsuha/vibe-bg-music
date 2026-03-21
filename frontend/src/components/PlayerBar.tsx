@@ -38,9 +38,19 @@ export default function PlayerBar({
     <div className="fixed bottom-0 left-0 right-0 h-20 bg-black/90 backdrop-blur-xl backdrop-saturate-[1.8] border-t border-[var(--ds-gray-400)] px-6 flex items-center gap-5 z-50">
       {/* Track Info */}
       <div className="flex items-center gap-3 w-[260px] min-w-0 shrink-0">
-        <div className="w-12 h-12 rounded border border-[var(--ds-gray-400)] bg-[var(--ds-gray-200)] flex items-center justify-center text-lg text-[var(--ds-gray-700)] shrink-0">
-          ♪
-        </div>
+        {name ? (
+          <img
+            key={data?.database_id}
+            src={`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/api/player/artwork?t=${data?.database_id}`}
+            alt=""
+            className="w-12 h-12 rounded border border-[var(--ds-gray-400)] bg-[var(--ds-gray-200)] shrink-0 object-cover"
+            onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
+          />
+        ) : (
+          <div className="w-12 h-12 rounded border border-[var(--ds-gray-400)] bg-[var(--ds-gray-200)] flex items-center justify-center text-lg text-[var(--ds-gray-700)] shrink-0">
+            ♪
+          </div>
+        )}
         <div className="min-w-0">
           <div className="text-sm font-medium truncate">{name || "Not Playing"}</div>
           <div className="text-[13px] text-[var(--ds-gray-700)] truncate">{artist}</div>

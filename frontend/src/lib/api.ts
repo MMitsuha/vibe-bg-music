@@ -26,4 +26,5 @@ export const api = {
   seek: (position: number) => request("/api/player/seek", { method: "POST", body: JSON.stringify({ position }) }),
   queue: () => request<{ queue: { database_id: number; name: string; artist: string; duration: number }[]; current_index: number }>("/api/player/queue"),
   removeFromQueue: (index: number) => request(`/api/player/queue/${index}`, { method: "DELETE" }),
+  jumpTo: (index: number) => request(`/api/player/jump/${index}`, { method: "POST" }),
 };

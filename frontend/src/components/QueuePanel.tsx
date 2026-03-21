@@ -19,6 +19,11 @@ export default function QueuePanel({
     mutate();
   }
 
+  async function handleJump(index: number) {
+    await api.jumpTo(index);
+    mutate();
+  }
+
   if (!visible) return null;
 
   return (
@@ -40,7 +45,8 @@ export default function QueuePanel({
       {queue.map((track, i) => (
         <div
           key={`${track.database_id}-${i}`}
-          className="flex items-center justify-between px-2 py-2 rounded-md transition-colors duration-150 hover:bg-[var(--ds-gray-alpha-200)]"
+          className="flex items-center justify-between px-2 py-2 rounded-md transition-colors duration-150 hover:bg-[var(--ds-gray-alpha-200)] cursor-pointer"
+          onClick={() => i !== currentIndex && handleJump(i)}
         >
           <div className="min-w-0 flex flex-col gap-0.5">
             <span className={`text-[13px] truncate ${i === currentIndex ? "text-[var(--geist-foreground)] font-medium" : "text-[var(--ds-gray-900)]"}`}>
@@ -52,7 +58,7 @@ export default function QueuePanel({
             <span className="text-[11px] font-medium text-[var(--geist-foreground)] shrink-0">Playing</span>
           ) : (
             <button
-              onClick={() => handleRemove(i)}
+              onClick={(e) => { e.stopPropagation(); handleRemove(i); }}
               className="w-6 h-6 flex items-center justify-center text-[var(--accents-3)] hover:text-[var(--geist-foreground)] hover:bg-[var(--ds-gray-alpha-200)] rounded transition-colors duration-150 shrink-0"
             >
               ×

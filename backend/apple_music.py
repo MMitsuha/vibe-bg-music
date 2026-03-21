@@ -155,6 +155,40 @@ def get_player_state() -> dict:
     }
 
 
+def get_artwork() -> bytes | None:
+    _ensure_running()
+    script = '''
+    tell application "Music"
+        set pState to player state as string
+        if pState is "stopped" then return ""
+        try
+            set artData to raw data of artwork 1 of current track
+            return artData
+        on error
+            return ""
+        end try
+    end tell
+    '''
+    result = subprocess.run(
+        ["osascript", "-e", script],
+        capture_output=True, timeout=10,
+    )
+    if result.returncode != 0 or not result.stdout:
+        return None
+    text = result.stdout.decode("latin-1").strip()
+    # Format: «data tdtaFFD8FFE0...» — extract hex between "tdta" and "»"
+    start = text.find("tdta")
+    if start == -1:
+        return None
+    hex_str = text[start + 4:].rstrip().rstrip("»").rstrip("\xbb").rstrip("Â").strip()
+    if len(hex_str) < 8:
+        return None
+    try:
+        return bytes.fromhex(hex_str)
+    except ValueError:
+        return None
+
+
 def set_position(seconds: float):
     _ensure_running()
     _run(f'tell application "Music" to set player position to {seconds}')
