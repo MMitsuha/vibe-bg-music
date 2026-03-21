@@ -101,6 +101,14 @@ For large playlists (100+ tracks), splits into batches of 50. The first batch es
 
 GPT response is validated: parse JSON, verify all returned tracks exist in the original playlist (by database_id). Tracks GPT omits are placed in an "Uncategorized" fallback category. Malformed JSON triggers a retry (up to 2 retries per batch).
 
+#### Custom Description Matching
+
+`pick_by_description(description: str, tracks: list[Track]) -> list[Track]`
+
+Sends all classified tracks (from current playlist) along with a user-provided natural language description to GPT. GPT selects tracks that match the description and returns their database_ids. Example descriptions: "适合下雨天听的歌", "upbeat workout music", "带有钢琴的安静曲子".
+
+Uses `client.responses.create()` with structured JSON output: `{"track_ids": [12345, 67890, ...]}`. Validated against known tracks. Returns empty list if none match (frontend shows "No matching tracks").
+
 ### Player Management (`player.py`)
 
 `PlayerState` class maintains:
@@ -130,6 +138,7 @@ Note: single `PlayerState` instance — multiple LAN clients share the same play
 | GET | `/api/classify/status` | Classification progress: `{status: "idle"|"classifying"|"done"|"error", progress?: "2/4 batches"}` |
 | GET | `/api/categories` | Get current classification results |
 | POST | `/api/play/category/{name}` | Start playing a category (returns 400 if category is empty) |
+| POST | `/api/play/custom` | Play by description (body: `{description: "text"}`). Calls GPT to pick matching tracks, builds queue, starts playback. Returns 400 if no tracks match |
 | POST | `/api/player/control` | Control playback (body: `{action: "pause"|"resume"|"next"|"prev"}`) |
 | GET | `/api/player/status` | Current playback state (polled every 1s) |
 | POST | `/api/player/volume` | Set volume (body: `{volume: 0-100}`) |
@@ -160,7 +169,7 @@ CORS enabled for all origins (LAN use).
 
 **ClassifyingState** — while classification is in progress (polling `/api/classify/status`), show a loading indicator with batch progress (e.g., "Classifying... 2/4 batches"). Disable "Classify" button during this time.
 
-**CategoryGrid** — 3-column grid of category cards after classification. Shows category name + track count. Hover reveals "Click to play →". Click starts random playback of that category.
+**CategoryGrid** — 3-column grid of category cards after classification. Shows category name + track count. Hover reveals "Click to play →". Click starts random playback of that category. The first card in the grid is a special **CustomPickCard**: an input field with placeholder "Describe what you want to hear..." and a submit button. User types a description, submits, backend calls GPT to pick matching tracks from the full playlist and starts playback. While GPT is selecting, show a loading spinner on the card.
 
 **PlayerBar** — fixed bottom bar (80px). Left: artwork placeholder + track name + artist. Center: prev/play-pause/next buttons + clickable progress bar (seek on click) with monospace timestamps. Right: volume slider + "Queue" button.
 
