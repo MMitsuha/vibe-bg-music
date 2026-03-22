@@ -63,12 +63,18 @@ def get_tracks(playlist_name: str) -> list[dict]:
         set output to ""
         set theTracks to tracks of user playlist "{safe_name}"
         repeat with t in theTracks
+            set tID to database ID of t
             set tName to name of t
             set tArtist to artist of t
             set tAlbum to album of t
             set tDuration to duration of t
-            set tID to database ID of t
-            set output to output & tID & "|||" & tName & "|||" & tArtist & "|||" & tAlbum & "|||" & tDuration & "\\n"
+            set tGenre to genre of t
+            set tYear to year of t
+            set tBpm to bpm of t
+            set tComposer to composer of t
+            set tAlbumArtist to album artist of t
+            set tPlayed to played count of t
+            set output to output & tID & "|||" & tName & "|||" & tArtist & "|||" & tAlbum & "|||" & tDuration & "|||" & tGenre & "|||" & tYear & "|||" & tBpm & "|||" & tComposer & "|||" & tAlbumArtist & "|||" & tPlayed & "\\n"
         end repeat
         return output
     end tell
@@ -87,6 +93,12 @@ def get_tracks(playlist_name: str) -> list[dict]:
             "artist": parts[2],
             "album": parts[3],
             "duration": float(parts[4]),
+            "genre": parts[5] if len(parts) > 5 else "",
+            "year": int(parts[6]) if len(parts) > 6 and parts[6].isdigit() else 0,
+            "bpm": int(parts[7]) if len(parts) > 7 and parts[7].isdigit() else 0,
+            "composer": parts[8] if len(parts) > 8 else "",
+            "album_artist": parts[9] if len(parts) > 9 else "",
+            "played_count": int(parts[10]) if len(parts) > 10 and parts[10].isdigit() else 0,
         })
     return tracks
 

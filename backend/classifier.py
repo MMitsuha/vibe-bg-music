@@ -16,14 +16,31 @@ _category_direction = os.getenv("GPT_CATEGORY_DIRECTION", "")
 BATCH_SIZE = 50
 
 
+def _fmt_track(t: dict) -> str:
+    parts = [f"[{t['database_id']}] {t['name']} — {t['artist']} ({t['album']})"]
+    extras = []
+    if t.get("genre"):
+        extras.append(f"genre:{t['genre']}")
+    if t.get("year"):
+        extras.append(f"year:{t['year']}")
+    if t.get("bpm"):
+        extras.append(f"bpm:{t['bpm']}")
+    if t.get("composer"):
+        extras.append(f"composer:{t['composer']}")
+    if t.get("album_artist") and t["album_artist"] != t["artist"]:
+        extras.append(f"album_artist:{t['album_artist']}")
+    if t.get("played_count"):
+        extras.append(f"plays:{t['played_count']}")
+    if extras:
+        parts.append(f"[{', '.join(extras)}]")
+    return "- " + " ".join(parts)
+
+
 def _classify_batch(
     tracks: list[dict],
     existing_categories: list[str] | None = None,
 ) -> dict[str, list[dict]]:
-    track_info = "\n".join(
-        f"- [{t['database_id']}] {t['name']} — {t['artist']} ({t['album']})"
-        for t in tracks
-    )
+    track_info = "\n".join(_fmt_track(t) for t in tracks)
 
     category_hint = ""
     if existing_categories:
@@ -38,6 +55,17 @@ def _classify_batch(
     prompt = f"""Classify the following music tracks into genre categories.
 Decide the appropriate granularity yourself (e.g., "Indie Rock", "Synthwave", "Lo-fi Hip Hop").
 Output all category names in {_language}.{category_hint}{count_hint}{direction_hint}
+
+Each track is formatted as:
+- [database_id] title — artist (album) [metadata]
+
+Metadata fields (when available):
+- genre: the genre tag from the music file
+- year: release year
+- bpm: beats per minute (tempo)
+- composer: the songwriter/composer
+- album_artist: the album-level artist (shown only if different from track artist)
+- plays: how many times the user has played this track (indicates preference)
 
 Tracks:
 {track_info}
@@ -105,11 +133,19 @@ def classify_tracks(
 
 
 def pick_by_description(description: str, tracks: list[dict]) -> list[dict]:
-    track_info = "\n".join(
-        f"- [{t['database_id']}] {t['name']} — {t['artist']} ({t['album']})"
-        for t in tracks
-    )
+    track_info = "\n".join(_fmt_track(t) for t in tracks)
     prompt = f"""From the following music tracks, select the ones that match this description: "{description}"
+
+Each track is formatted as:
+- [database_id] title — artist (album) [metadata]
+
+Metadata fields (when available):
+- genre: the genre tag from the music file
+- year: release year
+- bpm: beats per minute (tempo)
+- composer: the songwriter/composer
+- album_artist: the album-level artist (shown only if different from track artist)
+- plays: how many times the user has played this track (indicates preference)
 
 Tracks:
 {track_info}

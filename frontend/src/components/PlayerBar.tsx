@@ -61,7 +61,7 @@ export default function PlayerBar({
       <div className="flex-1 flex flex-col items-center gap-1.5">
         <div className="flex items-center gap-6">
           <button onClick={() => api.control("prev")} className="w-8 h-8 flex items-center justify-center text-[var(--ds-gray-900)] hover:text-[var(--geist-foreground)] transition-colors duration-150">
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M3 3h1.5v10H3V3zm9.5 5L6 13V3l6.5 5z"/></svg>
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M11.5 3H13v10h-1.5V3zM3.5 8L10 3v10L3.5 8z"/></svg>
           </button>
           <button
             onClick={() => api.control(isPlaying ? "pause" : "resume")}
@@ -74,7 +74,7 @@ export default function PlayerBar({
             )}
           </button>
           <button onClick={() => api.control("next")} className="w-8 h-8 flex items-center justify-center text-[var(--ds-gray-900)] hover:text-[var(--geist-foreground)] transition-colors duration-150">
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M11.5 3H13v10h-1.5V3zM3.5 8L10 3v10L3.5 8z"/></svg>
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M3 3h1.5v10H3V3zm9.5 5L6 13V3l6.5 5z"/></svg>
           </button>
         </div>
         <div className="flex items-center gap-2 w-full max-w-[560px]">
