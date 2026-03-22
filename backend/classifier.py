@@ -16,6 +16,18 @@ _category_direction = os.getenv("GPT_CATEGORY_DIRECTION", "")
 BATCH_SIZE = 50
 
 
+_TRACK_FORMAT_HINT = """Each track is formatted as:
+- [database_id] title — artist (album) [metadata]
+
+Metadata fields (when available):
+- genre: the genre tag from the music file
+- year: release year
+- bpm: beats per minute (tempo)
+- composer: the songwriter/composer
+- album_artist: the album-level artist (shown only if different from track artist)
+- plays: how many times the user has played this track (indicates preference)"""
+
+
 def _fmt_track(t: dict) -> str:
     parts = [f"[{t['database_id']}] {t['name']} — {t['artist']} ({t['album']})"]
     extras = []
@@ -56,16 +68,7 @@ def _classify_batch(
 Decide the appropriate granularity yourself (e.g., "Indie Rock", "Synthwave", "Lo-fi Hip Hop").
 Output all category names in {_language}.{category_hint}{count_hint}{direction_hint}
 
-Each track is formatted as:
-- [database_id] title — artist (album) [metadata]
-
-Metadata fields (when available):
-- genre: the genre tag from the music file
-- year: release year
-- bpm: beats per minute (tempo)
-- composer: the songwriter/composer
-- album_artist: the album-level artist (shown only if different from track artist)
-- plays: how many times the user has played this track (indicates preference)
+{_TRACK_FORMAT_HINT}
 
 Tracks:
 {track_info}
@@ -136,16 +139,7 @@ def pick_by_description(description: str, tracks: list[dict]) -> list[dict]:
     track_info = "\n".join(_fmt_track(t) for t in tracks)
     prompt = f"""From the following music tracks, select the ones that match this description: "{description}"
 
-Each track is formatted as:
-- [database_id] title — artist (album) [metadata]
-
-Metadata fields (when available):
-- genre: the genre tag from the music file
-- year: release year
-- bpm: beats per minute (tempo)
-- composer: the songwriter/composer
-- album_artist: the album-level artist (shown only if different from track artist)
-- plays: how many times the user has played this track (indicates preference)
+{_TRACK_FORMAT_HINT}
 
 Tracks:
 {track_info}
