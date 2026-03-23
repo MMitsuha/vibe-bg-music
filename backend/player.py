@@ -9,11 +9,12 @@ class Track:
     artist: str
     album: str
     duration: float
+    playlist_name: str = ""
 
 
 @dataclass
 class PlayerState:
-    playlist_name: str | None = None
+    playlist_names: list[str] = field(default_factory=list)
     categories: dict[str, list[Track]] = field(default_factory=dict)
     current_category: str | None = None
     queue: list[Track] = field(default_factory=list)
@@ -33,6 +34,7 @@ class PlayerState:
                     artist=t["artist"],
                     album=t.get("album", ""),
                     duration=t.get("duration", 0),
+                    playlist_name=t.get("playlist_name", ""),
                 )
                 for t in tracks
             ]

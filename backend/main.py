@@ -24,8 +24,8 @@ async def monitor_playback():
             is_stopped = ps["state"] in ("paused", "stopped")
             if prev_near_end and is_stopped and state.queue:
                 track = state.next()
-                if track and state.playlist_name:
-                    apple_music.play_track(state.playlist_name, track.database_id)
+                if track and track.playlist_name:
+                    apple_music.play_track(track.playlist_name, track.database_id)
             prev_near_end = near_end
         except Exception:
             pass
@@ -49,7 +49,7 @@ app.add_middleware(
 
 
 class ClassifyRequest(BaseModel):
-    playlist: str
+    playlists: list[str]
 
 class ControlRequest(BaseModel):
     action: str
@@ -102,18 +102,27 @@ async def classify(req: ClassifyRequest):
         return {"status": "classifying", "progress": state.classify_progress}
     state.classify_status = "classifying"
     state.classify_progress = ""
-    state.playlist_name = req.playlist
+    state.playlist_names = req.playlists
 
     async def run_classification():
         try:
-            tracks = apple_music.get_tracks(req.playlist)
-            state._all_tracks = tracks
+            all_tracks = []
+            for pl in req.playlists:
+                tracks = apple_music.get_tracks(pl)
+                for t in tracks:
+                    t["playlist_name"] = pl
+                all_tracks.extend(tracks)
+            state._all_tracks = all_tracks
             def on_progress(p: str):
                 state.classify_progress = p
             loop = asyncio.get_event_loop()
             categories = await loop.run_in_executor(
-                None, lambda: classifier.classify_tracks(tracks, on_progress)
+                None, lambda: classifier.classify_tracks(all_tracks, on_progress)
             )
+            pl_lookup = {t["database_id"]: t["playlist_name"] for t in all_tracks}
+            for cat_tracks in categories.values():
+                for t in cat_tracks:
+                    t["playlist_name"] = pl_lookup.get(t.get("database_id"), "")
             state.set_categories(categories)
             state.classify_status = "done"
         except Exception as e:
@@ -132,7 +141,7 @@ def classify_status():
 @app.get("/api/categories")
 def get_categories():
     return {
-        "playlist_name": state.playlist_name,
+        "playlist_names": state.playlist_names,
         "categories": {
             name: [{"database_id": t.database_id, "name": t.name, "artist": t.artist, "album": t.album, "duration": t.duration} for t in tracks]
             for name, tracks in state.categories.items()
@@ -146,7 +155,7 @@ async def play_category(name: str):
     if not track:
         raise HTTPException(400, f"Category '{name}' is empty or not found")
     try:
-        apple_music.play_track(state.playlist_name, track.database_id)
+        apple_music.play_track(track.playlist_name, track.database_id)
     except AppleMusicNotRunningError:
         raise HTTPException(503, "Apple Music is not running")
     if not state.is_monitoring:
@@ -167,12 +176,12 @@ async def play_custom(req: CustomPlayRequest):
     if not matched:
         raise HTTPException(400, "No tracks match this description")
     matched_as_tracks = [
-        Track(database_id=t["database_id"], name=t["name"], artist=t["artist"], album=t.get("album", ""), duration=t.get("duration", 0))
+        Track(database_id=t["database_id"], name=t["name"], artist=t["artist"], album=t.get("album", ""), duration=t.get("duration", 0), playlist_name=t.get("playlist_name", ""))
         for t in matched
     ]
     track = state.start_custom(matched_as_tracks)
     try:
-        apple_music.play_track(state.playlist_name, track.database_id)
+        apple_music.play_track(track.playlist_name, track.database_id)
     except AppleMusicNotRunningError:
         raise HTTPException(503, "Apple Music is not running")
     if not state.is_monitoring:
@@ -190,12 +199,12 @@ def player_control(req: ControlRequest):
             apple_music.resume()
         elif req.action == "next":
             track = state.next()
-            if track and state.playlist_name:
-                apple_music.play_track(state.playlist_name, track.database_id)
+            if track and track.playlist_name:
+                apple_music.play_track(track.playlist_name, track.database_id)
         elif req.action == "prev":
             track = state.prev()
-            if track and state.playlist_name:
-                apple_music.play_track(state.playlist_name, track.database_id)
+            if track and track.playlist_name:
+                apple_music.play_track(track.playlist_name, track.database_id)
             else:
                 apple_music.set_position(0)
         else:
@@ -246,7 +255,7 @@ async def player_jump(index: int):
     state.current_index = index
     track = state.queue[index]
     try:
-        apple_music.play_track(state.playlist_name, track.database_id)
+        apple_music.play_track(track.playlist_name, track.database_id)
     except AppleMusicNotRunningError:
         raise HTTPException(503, "Apple Music is not running")
     if not state.is_monitoring:
@@ -269,9 +278,9 @@ def player_queue():
 @app.delete("/api/player/queue/{index}")
 def remove_from_queue(index: int):
     next_track = state.remove_from_queue(index)
-    if next_track and state.playlist_name:
+    if next_track and next_track.playlist_name:
         try:
-            apple_music.play_track(state.playlist_name, next_track.database_id)
+            apple_music.play_track(next_track.playlist_name, next_track.database_id)
         except AppleMusicNotRunningError:
             raise HTTPException(503, "Apple Music is not running")
     return {"ok": True}

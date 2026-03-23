@@ -37,7 +37,7 @@ def get_playlists() -> list[dict]:
     script = '''
     tell application "Music"
         set output to ""
-        repeat with p in user playlists
+        repeat with p in (every playlist whose special kind is none)
             set pName to name of p
             set pCount to count of tracks of p
             set output to output & pName & "|||" & pCount & "\\n"
@@ -61,7 +61,7 @@ def get_tracks(playlist_name: str) -> list[dict]:
     script = f'''
     tell application "Music"
         set output to ""
-        set theTracks to tracks of user playlist "{safe_name}"
+        set theTracks to tracks of playlist "{safe_name}"
         repeat with t in theTracks
             set tID to database ID of t
             set tName to name of t
@@ -108,7 +108,7 @@ def play_track(playlist_name: str, database_id: int):
     safe_name = _escape(playlist_name)
     script = f'''
     tell application "Music"
-        set theTracks to (every track of user playlist "{safe_name}" whose database ID is {database_id})
+        set theTracks to (every track of playlist "{safe_name}" whose database ID is {database_id})
         if (count of theTracks) > 0 then
             play item 1 of theTracks
         end if

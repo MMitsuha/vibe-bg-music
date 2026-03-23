@@ -9,17 +9,26 @@ export default function PlaylistGrid({
   onClassified: () => void;
 }) {
   const { data, mutate } = useSWR("playlists", api.playlists);
-  const [selected, setSelected] = useState<string | null>(null);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
   const [classifyStatus, setClassifyStatus] = useState<string>("idle");
   const [progress, setProgress] = useState("");
 
   const playlists = data?.playlists ?? [];
   const fillerCount = (3 - (playlists.length % 3)) % 3;
 
+  function togglePlaylist(name: string) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(name)) next.delete(name);
+      else next.add(name);
+      return next;
+    });
+  }
+
   async function handleClassify() {
-    if (!selected || classifyStatus === "classifying") return;
+    if (selected.size === 0 || classifyStatus === "classifying") return;
     setClassifyStatus("classifying");
-    await api.classify(selected);
+    await api.classify([...selected]);
 
     const poll = setInterval(async () => {
       const s = await api.classifyStatus();
@@ -48,12 +57,12 @@ export default function PlaylistGrid({
         {playlists.map((p) => (
           <button
             key={p.name}
-            onClick={() => setSelected(p.name)}
+            onClick={() => togglePlaylist(p.name)}
             className={`relative bg-[var(--ds-background-100)] p-6 text-left transition-colors duration-150 hover:bg-[var(--ds-gray-100)] ${
-              selected === p.name ? "bg-[var(--ds-gray-100)]" : ""
+              selected.has(p.name) ? "bg-[var(--ds-gray-100)]" : ""
             }`}
           >
-            {selected === p.name && (
+            {selected.has(p.name) && (
               <span className="absolute top-3 right-3 w-2 h-2 rounded-full bg-[var(--geist-foreground)]" />
             )}
             <div className="text-sm font-semibold text-[var(--geist-foreground)]">{p.name}</div>
@@ -68,7 +77,7 @@ export default function PlaylistGrid({
       <div className="flex gap-3 mb-12">
         <button
           onClick={handleClassify}
-          disabled={!selected || classifyStatus === "classifying"}
+          disabled={selected.size === 0 || classifyStatus === "classifying"}
           className="h-10 px-4 bg-[var(--geist-foreground)] text-[var(--geist-background)] rounded-lg text-sm font-medium transition-colors duration-150 hover:bg-[#ccc] disabled:opacity-40 disabled:cursor-not-allowed"
         >
           {classifyStatus === "classifying" ? `Classifying... ${progress}` : "Classify with AI"}

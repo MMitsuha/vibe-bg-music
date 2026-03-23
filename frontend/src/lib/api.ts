@@ -15,7 +15,7 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
 export const api = {
   health: () => request<{ connected: boolean }>("/api/health"),
   playlists: () => request<{ playlists: { name: string; track_count: number }[] }>("/api/playlists"),
-  classify: (playlist: string) => request<{ status: string }>("/api/classify", { method: "POST", body: JSON.stringify({ playlist }) }),
+  classify: (playlists: string[]) => request<{ status: string }>("/api/classify", { method: "POST", body: JSON.stringify({ playlists }) }),
   classifyStatus: () => request<{ status: string; progress: string }>("/api/classify/status"),
   categories: () => request<{ playlist_name: string | null; categories: Record<string, { database_id: number; name: string; artist: string; album: string; duration: number }[]> }>("/api/categories"),
   playCategory: (name: string) => request<{ playing: string }>(`/api/play/category/${encodeURIComponent(name)}`, { method: "POST" }),
