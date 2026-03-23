@@ -1,9 +1,9 @@
 import json
 import os
-from openai import OpenAI
-from dotenv import load_dotenv
 
-load_dotenv(os.path.join(os.path.dirname(__file__), "..", ".env"))
+from openai import OpenAI
+
+from models import Track
 
 _client = OpenAI(
     api_key=os.getenv("OPENAI_API_KEY"),
@@ -14,7 +14,6 @@ _category_count = os.getenv("GPT_CATEGORY_COUNT", "")
 _category_direction = os.getenv("GPT_CATEGORY_DIRECTION", "")
 
 BATCH_SIZE = 50
-
 
 _TRACK_FORMAT_HINT = """Each track is formatted as:
 - [database_id] title — artist (album) [metadata]
@@ -28,30 +27,30 @@ Metadata fields (when available):
 - plays: how many times the user has played this track (indicates preference)"""
 
 
-def _fmt_track(t: dict) -> str:
-    parts = [f"[{t['database_id']}] {t['name']} — {t['artist']} ({t['album']})"]
+def _fmt_track(t: Track) -> str:
+    parts = [f"[{t.database_id}] {t.name} — {t.artist} ({t.album})"]
     extras = []
-    if t.get("genre"):
-        extras.append(f"genre:{t['genre']}")
-    if t.get("year"):
-        extras.append(f"year:{t['year']}")
-    if t.get("bpm"):
-        extras.append(f"bpm:{t['bpm']}")
-    if t.get("composer"):
-        extras.append(f"composer:{t['composer']}")
-    if t.get("album_artist") and t["album_artist"] != t["artist"]:
-        extras.append(f"album_artist:{t['album_artist']}")
-    if t.get("played_count"):
-        extras.append(f"plays:{t['played_count']}")
+    if t.genre:
+        extras.append(f"genre:{t.genre}")
+    if t.year:
+        extras.append(f"year:{t.year}")
+    if t.bpm:
+        extras.append(f"bpm:{t.bpm}")
+    if t.composer:
+        extras.append(f"composer:{t.composer}")
+    if t.album_artist and t.album_artist != t.artist:
+        extras.append(f"album_artist:{t.album_artist}")
+    if t.played_count:
+        extras.append(f"plays:{t.played_count}")
     if extras:
         parts.append(f"[{', '.join(extras)}]")
     return "- " + " ".join(parts)
 
 
 def _classify_batch(
-    tracks: list[dict],
+    tracks: list[Track],
     existing_categories: list[str] | None = None,
-) -> dict[str, list[dict]]:
+) -> dict[str, list[int]]:
     track_info = "\n".join(_fmt_track(t) for t in tracks)
 
     category_hint = ""
@@ -74,8 +73,8 @@ Tracks:
 {track_info}
 
 Return ONLY valid JSON in this format:
-{{"categories": {{"CategoryName": [{{"name": "...", "artist": "...", "database_id": 12345}}, ...]}}}}
-"""
+{{"categories": {{"CategoryName": [12345, 67890, ...]}}}}
+Use database_id integers only in the arrays."""
 
     for attempt in range(3):
         try:
@@ -96,46 +95,51 @@ Return ONLY valid JSON in this format:
 
 
 def classify_tracks(
-    tracks: list[dict],
+    tracks: list[Track],
     progress_callback=None,
-) -> dict[str, list[dict]]:
+) -> dict[str, list[Track]]:
+    track_lookup = {t.database_id: t for t in tracks}
+
+    def resolve(id_map: dict[str, list[int]]) -> dict[str, list[Track]]:
+        result = {}
+        for cat_name, ids in id_map.items():
+            resolved = [track_lookup[tid] for tid in ids if tid in track_lookup]
+            if resolved:
+                result[cat_name] = resolved
+        return result
+
     if len(tracks) <= BATCH_SIZE:
         if progress_callback:
             progress_callback("1/1 batches")
-        return _classify_batch(tracks)
+        return resolve(_classify_batch(tracks))
 
     batches = [tracks[i : i + BATCH_SIZE] for i in range(0, len(tracks), BATCH_SIZE)]
     total = len(batches)
-    all_categories: dict[str, list[dict]] = {}
+    all_ids: dict[str, list[int]] = {}
     existing_names: list[str] = []
 
     for idx, batch in enumerate(batches):
         if progress_callback:
             progress_callback(f"{idx + 1}/{total} batches")
         result = _classify_batch(batch, existing_names if existing_names else None)
-        for cat_name, cat_tracks in result.items():
-            if cat_name not in all_categories:
-                all_categories[cat_name] = []
+        for cat_name, ids in result.items():
+            if cat_name not in all_ids:
+                all_ids[cat_name] = []
                 existing_names.append(cat_name)
-            all_categories[cat_name].extend(cat_tracks)
+            all_ids[cat_name].extend(ids)
 
-    # Validate: collect classified IDs
-    classified_ids = set()
-    valid_ids = {t["database_id"] for t in tracks}
-    for cat_tracks in all_categories.values():
-        cat_tracks[:] = [t for t in cat_tracks if t.get("database_id") in valid_ids]
-        classified_ids.update(t["database_id"] for t in cat_tracks)
+    categories = resolve(all_ids)
 
-    # Uncategorized fallback
-    uncategorized = [t for t in tracks if t["database_id"] not in classified_ids]
+    classified_ids = {t.database_id for cat_tracks in categories.values() for t in cat_tracks}
+    uncategorized = [t for t in tracks if t.database_id not in classified_ids]
     if uncategorized:
         label = {"zh-CN": "未分类", "ja": "未分類"}.get(_language, "Uncategorized")
-        all_categories[label] = uncategorized
+        categories[label] = uncategorized
 
-    return all_categories
+    return categories
 
 
-def pick_by_description(description: str, tracks: list[dict]) -> list[dict]:
+def pick_by_description(description: str, tracks: list[Track]) -> list[Track]:
     track_info = "\n".join(_fmt_track(t) for t in tracks)
     prompt = f"""From the following music tracks, select the ones that match this description: "{description}"
 
@@ -157,8 +161,8 @@ If no tracks match, return {{"track_ids": []}}
         if text.startswith("```"):
             text = text.split("\n", 1)[1].rsplit("```", 1)[0].strip()
         data = json.loads(text)
-        valid_ids = {t["database_id"] for t in tracks}
+        valid_ids = {t.database_id for t in tracks}
         matched_ids = set(data.get("track_ids", [])) & valid_ids
-        return [t for t in tracks if t["database_id"] in matched_ids]
+        return [t for t in tracks if t.database_id in matched_ids]
     except (json.JSONDecodeError, KeyError, AttributeError):
         return []

@@ -41,7 +41,7 @@ export default function PlayerBar({
         {name ? (
           <img
             key={data?.database_id}
-            src={`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/api/player/artwork?t=${data?.database_id}`}
+            src={api.artwork(data?.database_id ?? 0)}
             alt=""
             className="w-12 h-12 rounded border border-[var(--ds-gray-400)] bg-[var(--ds-gray-200)] shrink-0 object-cover"
             onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}

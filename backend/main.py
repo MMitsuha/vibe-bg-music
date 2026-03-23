@@ -1,18 +1,19 @@
 import asyncio
 import os
 from contextlib import asynccontextmanager
+
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
-from fastapi.responses import JSONResponse, Response
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
+from fastapi.responses import JSONResponse, Response
 
 load_dotenv(os.path.join(os.path.dirname(__file__), "..", ".env"))
 
 import apple_music
-from apple_music import AppleMusicNotRunningError
 import classifier
-from player import state, Track
+from apple_music import AppleMusicNotRunningError
+from models import ClassifyRequest, ControlRequest, CustomPlayRequest, SeekRequest, VolumeRequest
+from player import state
 
 
 async def monitor_playback():
@@ -32,6 +33,17 @@ async def monitor_playback():
         await asyncio.sleep(1)
 
 
+def _ensure_monitoring():
+    if not state.is_monitoring:
+        state.is_monitoring = True
+        asyncio.create_task(monitor_playback())
+
+
+def _play_track(track):
+    apple_music.play_track(track.playlist_name, track.database_id)
+    _ensure_monitoring()
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     yield
@@ -48,25 +60,12 @@ app.add_middleware(
 )
 
 
-class ClassifyRequest(BaseModel):
-    playlists: list[str]
-
-class ControlRequest(BaseModel):
-    action: str
-
-class VolumeRequest(BaseModel):
-    volume: int
-
-class SeekRequest(BaseModel):
-    position: float
-
-class CustomPlayRequest(BaseModel):
-    description: str
-
-
 @app.exception_handler(AppleMusicNotRunningError)
 async def apple_music_error_handler(request, exc):
     return JSONResponse(status_code=503, content={"detail": "Apple Music is not running. Please open Apple Music."})
+
+
+# --- Health ---
 
 
 @app.get("/api/health")
@@ -74,26 +73,15 @@ def health():
     return {"connected": apple_music.is_running()}
 
 
-@app.get("/api/player/artwork")
-def player_artwork():
-    try:
-        data = apple_music.get_artwork()
-    except AppleMusicNotRunningError:
-        raise HTTPException(503, "Apple Music is not running")
-    if not data:
-        raise HTTPException(404, "No artwork available")
-    content_type = "image/jpeg"
-    if data[:4] == b'\x89PNG':
-        content_type = "image/png"
-    return Response(content=data, media_type=content_type)
+# --- Playlists ---
 
 
 @app.get("/api/playlists")
 def list_playlists():
-    try:
-        return {"playlists": apple_music.get_playlists()}
-    except AppleMusicNotRunningError:
-        raise HTTPException(503, "Apple Music is not running")
+    return {"playlists": apple_music.get_playlists()}
+
+
+# --- Classification ---
 
 
 @app.post("/api/classify")
@@ -108,22 +96,18 @@ async def classify(req: ClassifyRequest):
         try:
             all_tracks = []
             for pl in req.playlists:
-                tracks = apple_music.get_tracks(pl)
-                for t in tracks:
-                    t["playlist_name"] = pl
-                all_tracks.extend(tracks)
-            state._all_tracks = all_tracks
+                all_tracks.extend(apple_music.get_tracks(pl))
+
+            state.all_tracks = all_tracks
+
             def on_progress(p: str):
                 state.classify_progress = p
+
             loop = asyncio.get_event_loop()
             categories = await loop.run_in_executor(
                 None, lambda: classifier.classify_tracks(all_tracks, on_progress)
             )
-            pl_lookup = {t["database_id"]: t["playlist_name"] for t in all_tracks}
-            for cat_tracks in categories.values():
-                for t in cat_tracks:
-                    t["playlist_name"] = pl_lookup.get(t.get("database_id"), "")
-            state.set_categories(categories)
+            state.categories = categories
             state.classify_status = "done"
         except Exception as e:
             state.classify_status = "error"
@@ -138,15 +122,21 @@ def classify_status():
     return {"status": state.classify_status, "progress": state.classify_progress}
 
 
+# --- Categories ---
+
+
 @app.get("/api/categories")
 def get_categories():
     return {
         "playlist_names": state.playlist_names,
         "categories": {
-            name: [{"database_id": t.database_id, "name": t.name, "artist": t.artist, "album": t.album, "duration": t.duration} for t in tracks]
+            name: [t.model_dump(include={"database_id", "name", "artist", "album", "duration"}) for t in tracks]
             for name, tracks in state.categories.items()
-        }
+        },
     }
+
+
+# --- Playback ---
 
 
 @app.post("/api/play/category/{name:path}")
@@ -154,63 +144,46 @@ async def play_category(name: str):
     track = state.start_category(name)
     if not track:
         raise HTTPException(400, f"Category '{name}' is empty or not found")
-    try:
-        apple_music.play_track(track.playlist_name, track.database_id)
-    except AppleMusicNotRunningError:
-        raise HTTPException(503, "Apple Music is not running")
-    if not state.is_monitoring:
-        state.is_monitoring = True
-        asyncio.create_task(monitor_playback())
+    _play_track(track)
     return {"playing": track.name, "artist": track.artist}
 
 
 @app.post("/api/play/custom")
 async def play_custom(req: CustomPlayRequest):
-    all_tracks = state.get_all_tracks_flat()
-    if not all_tracks:
+    if not state.all_tracks:
         raise HTTPException(400, "No tracks available. Classify a playlist first.")
     loop = asyncio.get_event_loop()
     matched = await loop.run_in_executor(
-        None, lambda: classifier.pick_by_description(req.description, all_tracks)
+        None, lambda: classifier.pick_by_description(req.description, state.all_tracks)
     )
     if not matched:
         raise HTTPException(400, "No tracks match this description")
-    matched_as_tracks = [
-        Track(database_id=t["database_id"], name=t["name"], artist=t["artist"], album=t.get("album", ""), duration=t.get("duration", 0), playlist_name=t.get("playlist_name", ""))
-        for t in matched
-    ]
-    track = state.start_custom(matched_as_tracks)
-    try:
-        apple_music.play_track(track.playlist_name, track.database_id)
-    except AppleMusicNotRunningError:
-        raise HTTPException(503, "Apple Music is not running")
-    if not state.is_monitoring:
-        state.is_monitoring = True
-        asyncio.create_task(monitor_playback())
+    track = state.start_custom(matched)
+    _play_track(track)
     return {"playing": track.name, "artist": track.artist, "matched_count": len(matched)}
+
+
+# --- Player controls ---
 
 
 @app.post("/api/player/control")
 def player_control(req: ControlRequest):
-    try:
-        if req.action == "pause":
-            apple_music.pause()
-        elif req.action == "resume":
-            apple_music.resume()
-        elif req.action == "next":
-            track = state.next()
-            if track and track.playlist_name:
-                apple_music.play_track(track.playlist_name, track.database_id)
-        elif req.action == "prev":
-            track = state.prev()
-            if track and track.playlist_name:
-                apple_music.play_track(track.playlist_name, track.database_id)
-            else:
-                apple_music.set_position(0)
+    if req.action == "pause":
+        apple_music.pause()
+    elif req.action == "resume":
+        apple_music.resume()
+    elif req.action == "next":
+        track = state.next()
+        if track and track.playlist_name:
+            apple_music.play_track(track.playlist_name, track.database_id)
+    elif req.action == "prev":
+        track = state.prev()
+        if track and track.playlist_name:
+            apple_music.play_track(track.playlist_name, track.database_id)
         else:
-            raise HTTPException(400, f"Unknown action: {req.action}")
-    except AppleMusicNotRunningError:
-        raise HTTPException(503, "Apple Music is not running")
+            apple_music.set_position(0)
+    else:
+        raise HTTPException(400, f"Unknown action: {req.action}")
     return {"ok": True}
 
 
@@ -230,21 +203,24 @@ def player_status():
         return {"state": "disconnected", "name": "", "artist": "", "position": 0, "duration": 0, "volume": 0}
 
 
+@app.get("/api/player/artwork")
+def player_artwork():
+    data = apple_music.get_artwork()
+    if not data:
+        raise HTTPException(404, "No artwork available")
+    content_type = "image/png" if data[:4] == b'\x89PNG' else "image/jpeg"
+    return Response(content=data, media_type=content_type)
+
+
 @app.post("/api/player/volume")
 def player_volume(req: VolumeRequest):
-    try:
-        apple_music.set_volume(req.volume)
-    except AppleMusicNotRunningError:
-        raise HTTPException(503, "Apple Music is not running")
+    apple_music.set_volume(req.volume)
     return {"volume": req.volume}
 
 
 @app.post("/api/player/seek")
 def player_seek(req: SeekRequest):
-    try:
-        apple_music.set_position(req.position)
-    except AppleMusicNotRunningError:
-        raise HTTPException(503, "Apple Music is not running")
+    apple_music.set_position(req.position)
     return {"position": req.position}
 
 
@@ -254,13 +230,7 @@ async def player_jump(index: int):
         raise HTTPException(400, "Invalid queue index")
     state.current_index = index
     track = state.queue[index]
-    try:
-        apple_music.play_track(track.playlist_name, track.database_id)
-    except AppleMusicNotRunningError:
-        raise HTTPException(503, "Apple Music is not running")
-    if not state.is_monitoring:
-        state.is_monitoring = True
-        asyncio.create_task(monitor_playback())
+    _play_track(track)
     return {"playing": track.name, "artist": track.artist}
 
 
@@ -268,7 +238,7 @@ async def player_jump(index: int):
 def player_queue():
     return {
         "queue": [
-            {"database_id": t.database_id, "name": t.name, "artist": t.artist, "duration": t.duration}
+            t.model_dump(include={"database_id", "name", "artist", "duration"})
             for t in state.queue
         ],
         "current_index": state.current_index,
@@ -279,8 +249,5 @@ def player_queue():
 def remove_from_queue(index: int):
     next_track = state.remove_from_queue(index)
     if next_track and next_track.playlist_name:
-        try:
-            apple_music.play_track(next_track.playlist_name, next_track.database_id)
-        except AppleMusicNotRunningError:
-            raise HTTPException(503, "Apple Music is not running")
+        apple_music.play_track(next_track.playlist_name, next_track.database_id)
     return {"ok": True}

@@ -10,7 +10,7 @@ export default function CategoryGrid() {
   const [customError, setCustomError] = useState("");
 
   const categories = data?.categories ?? {};
-  const playlistName = data?.playlist_name ?? "";
+  const playlistNames = data?.playlist_names ?? [];
   const entries = Object.entries(categories);
 
   // +1 for custom pick card
@@ -36,8 +36,8 @@ export default function CategoryGrid() {
     <section>
       <div className="flex items-baseline gap-3 mb-6" id="categories">
         <h2 className="text-2xl font-bold tracking-[-0.02em]">Categories</h2>
-        {playlistName && (
-          <span className="text-sm text-[var(--ds-gray-700)]">from {playlistName}</span>
+        {playlistNames.length > 0 && (
+          <span className="text-sm text-[var(--ds-gray-700)]">from {playlistNames.join(", ")}</span>
         )}
       </div>
 

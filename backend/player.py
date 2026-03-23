@@ -1,15 +1,7 @@
 import random
 from dataclasses import dataclass, field
 
-
-@dataclass
-class Track:
-    database_id: int
-    name: str
-    artist: str
-    album: str
-    duration: float
-    playlist_name: str = ""
+from models import Track
 
 
 @dataclass
@@ -20,29 +12,12 @@ class PlayerState:
     queue: list[Track] = field(default_factory=list)
     current_index: int = 0
     is_monitoring: bool = False
-    classify_status: str = "idle"  # idle | classifying | done | error
+    classify_status: str = "idle"
     classify_progress: str = ""
-    _all_tracks: list[dict] = field(default_factory=list)
-
-    def set_categories(self, categories: dict[str, list[dict]]):
-        self.categories = {}
-        for name, tracks in categories.items():
-            self.categories[name] = [
-                Track(
-                    database_id=t["database_id"],
-                    name=t["name"],
-                    artist=t["artist"],
-                    album=t.get("album", ""),
-                    duration=t.get("duration", 0),
-                    playlist_name=t.get("playlist_name", ""),
-                )
-                for t in tracks
-            ]
+    all_tracks: list[Track] = field(default_factory=list)
 
     def start_category(self, category_name: str) -> Track | None:
-        if category_name not in self.categories:
-            return None
-        tracks = self.categories[category_name]
+        tracks = self.categories.get(category_name)
         if not tracks:
             return None
         self.current_category = category_name
@@ -97,9 +72,6 @@ class PlayerState:
         if not self.queue or self.current_index >= len(self.queue):
             return None
         return self.queue[self.current_index]
-
-    def get_all_tracks_flat(self) -> list[dict]:
-        return self._all_tracks
 
 
 state = PlayerState()

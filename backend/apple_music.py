@@ -1,5 +1,7 @@
 import subprocess
 
+from models import Track
+
 
 class AppleMusicNotRunningError(Exception):
     pass
@@ -55,7 +57,7 @@ def get_playlists() -> list[dict]:
     return playlists
 
 
-def get_tracks(playlist_name: str) -> list[dict]:
+def get_tracks(playlist_name: str) -> list[Track]:
     _ensure_running()
     safe_name = _escape(playlist_name)
     script = f'''
@@ -87,19 +89,20 @@ def get_tracks(playlist_name: str) -> list[dict]:
         parts = line.split("|||")
         if len(parts) < 5:
             continue
-        tracks.append({
-            "database_id": int(parts[0]),
-            "name": parts[1],
-            "artist": parts[2],
-            "album": parts[3],
-            "duration": float(parts[4]),
-            "genre": parts[5] if len(parts) > 5 else "",
-            "year": int(parts[6]) if len(parts) > 6 and parts[6].isdigit() else 0,
-            "bpm": int(parts[7]) if len(parts) > 7 and parts[7].isdigit() else 0,
-            "composer": parts[8] if len(parts) > 8 else "",
-            "album_artist": parts[9] if len(parts) > 9 else "",
-            "played_count": int(parts[10]) if len(parts) > 10 and parts[10].isdigit() else 0,
-        })
+        tracks.append(Track(
+            database_id=int(parts[0]),
+            name=parts[1],
+            artist=parts[2],
+            album=parts[3],
+            duration=float(parts[4]),
+            playlist_name=playlist_name,
+            genre=parts[5] if len(parts) > 5 else "",
+            year=int(parts[6]) if len(parts) > 6 and parts[6].isdigit() else 0,
+            bpm=int(parts[7]) if len(parts) > 7 and parts[7].isdigit() else 0,
+            composer=parts[8] if len(parts) > 8 else "",
+            album_artist=parts[9] if len(parts) > 9 else "",
+            played_count=int(parts[10]) if len(parts) > 10 and parts[10].isdigit() else 0,
+        ))
     return tracks
 
 
@@ -125,16 +128,6 @@ def pause():
 def resume():
     _ensure_running()
     _run('tell application "Music" to play')
-
-
-def next_track():
-    _ensure_running()
-    _run('tell application "Music" to next track')
-
-
-def prev_track():
-    _ensure_running()
-    _run('tell application "Music" to previous track')
 
 
 def get_player_state() -> dict:
@@ -188,11 +181,10 @@ def get_artwork() -> bytes | None:
     if result.returncode != 0 or not result.stdout:
         return None
     text = result.stdout.decode("latin-1").strip()
-    # Format: «data tdtaFFD8FFE0...» — extract hex between "tdta" and "»"
     start = text.find("tdta")
     if start == -1:
         return None
-    hex_str = text[start + 4:].rstrip().rstrip("»").rstrip("\xbb").rstrip("Â").strip()
+    hex_str = text[start + 4:].rstrip().rstrip("\xbb").rstrip("\xc2").strip()
     if len(hex_str) < 8:
         return None
     try:
